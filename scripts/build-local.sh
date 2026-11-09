@@ -40,20 +40,39 @@ abi_to_asset_dir() {
     esac
 }
 
-# ksuinit is embedded into ksud and is also used by boot patching. Build it
-# first so the ksud rust-embed step sees it.
+abi_to_musl_target() {
+    case "$1" in
+        arm64-v8a) echo "aarch64-unknown-linux-musl" ;;
+        armeabi-v7a) echo "armv7-unknown-linux-musleabihf" ;;
+        x86_64) echo "x86_64-unknown-linux-musl" ;;
+        *) echo "unsupported ABI: $1" >&2; return 1 ;;
+    esac
+}
+
+# ksuinit is embedded into ksud and is also used as the first-stage init by
+# boot patching. It must be statically linked so it can run before /system and
+# the Android linker are available.
 #
 # The locally installed NDK bundles a libc.a that already contains Rust std,
-# so the upstream +crt-static link fails with duplicate Rust symbols here.
-# A dynamically linked ksuinit is used instead; the Android linker and libc
-# are available in the init environment.
-unset RUSTFLAGS
+# which makes the upstream +crt-static Android link fail with duplicate
+# symbols. Build the same code against musl instead: the result is a truly
+# static Linux executable using only kernel syscalls, which is what this
+# pre-init helper needs.
+HOST_TRIPLE="$(rustc -vV | sed -n 's/^host: //p')"
+RUST_LLD="$(rustc --print sysroot)/lib/rustlib/$HOST_TRIPLE/bin/rust-lld"
 pushd "$ROOT_DIR/userspace/ksuinit" >/dev/null
 for abi in $ABIS; do
-    target="$(abi_to_target "$abi")"
+    musl_target="$(abi_to_musl_target "$abi")"
     asset_dir="$(abi_to_asset_dir "$abi")"
-    cargo ndk -P "$API_LEVEL" -t "$abi" build --release
-    install -D -m 0755 "target/$target/release/ksuinit" \
+    rustup target add "$musl_target" >/dev/null
+    RUSTFLAGS="-C linker=$RUST_LLD -C link-arg=-z -C link-arg=max-page-size=16384" \
+        cargo build --release --target "$musl_target"
+    binary="target/$musl_target/release/ksuinit"
+    if file -b "$binary" | grep -q 'dynamically linked'; then
+        echo "ksuinit for $abi is not statically linked" >&2
+        exit 1
+    fi
+    install -D -m 0755 "$binary" \
         "$ROOT_DIR/userspace/ksud/bin/$asset_dir/ksuinit"
 done
 popd >/dev/null
