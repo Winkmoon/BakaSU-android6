@@ -17,9 +17,9 @@ export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$(find "$ANDROID_HOME/ndk" -mindept
 export JAVA_HOME="${JAVA_HOME:-/opt/jdk-25}"
 export PATH="$CARGO_HOME/bin:$JAVA_HOME/bin:$PATH"
 
-# ABI set and Android API level can be overridden from the environment.
-ABIS="${ABIS:-arm64-v8a}"
-API_LEVEL="${API_LEVEL:-26}"
+# The manager supports Android 6.0 (API 23), arm64/armv7/x86_64.
+ABIS="${ABIS:-arm64-v8a armeabi-v7a x86_64}"
+API_LEVEL="${API_LEVEL:-23}"
 GRADLE_TASK="${GRADLE_TASK:-:app:assembleDebug}"
 
 abi_to_target() {
@@ -31,7 +31,35 @@ abi_to_target() {
     esac
 }
 
+abi_to_asset_dir() {
+    case "$1" in
+        arm64-v8a) echo "aarch64" ;;
+        armeabi-v7a) echo "arm" ;;
+        x86_64) echo "x86_64" ;;
+        *) echo "unsupported ABI: $1" >&2; return 1 ;;
+    esac
+}
+
+# ksuinit is embedded into ksud and is also used by boot patching. Build it
+# first so the ksud rust-embed step sees it.
+#
+# The locally installed NDK bundles a libc.a that already contains Rust std,
+# so the upstream +crt-static link fails with duplicate Rust symbols here.
+# A dynamically linked ksuinit is used instead; the Android linker and libc
+# are available in the init environment.
+unset RUSTFLAGS
+pushd "$ROOT_DIR/userspace/ksuinit" >/dev/null
+for abi in $ABIS; do
+    target="$(abi_to_target "$abi")"
+    asset_dir="$(abi_to_asset_dir "$abi")"
+    cargo ndk -P "$API_LEVEL" -t "$abi" build --release
+    install -D -m 0755 "target/$target/release/ksuinit" \
+        "$ROOT_DIR/userspace/ksud/bin/$asset_dir/ksuinit"
+done
+popd >/dev/null
+
 # cargo-ndk needs to run from the crate directory.
+export KSU_ANDROID_API_LEVEL="$API_LEVEL"
 pushd "$ROOT_DIR/userspace/ksud" >/dev/null
 for abi in $ABIS; do
     target="$(abi_to_target "$abi")"
