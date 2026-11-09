@@ -298,7 +298,16 @@ mod android {
     #[cfg(target_os = "android")]
     pub(super) fn post_ota() -> Result<()> {
         use crate::{assets::BOOTCTL_PATH, defs::ADB_DIR};
-        let status = Command::new(BOOTCTL_PATH).arg("hal-info").status()?;
+        let status = match Command::new(BOOTCTL_PATH).arg("hal-info").status() {
+            Ok(status) => status,
+            Err(error) => {
+                // bootctl is a prebuilt Android helper that may reference
+                // libraries unavailable on Android 6; OTA slot switching is
+                // not applicable there, so treat it as a no-op.
+                log::warn!("bootctl unavailable, skipping OTA slot switch: {error}");
+                return Ok(());
+            }
+        };
         if !status.success() {
             return Ok(());
         }
