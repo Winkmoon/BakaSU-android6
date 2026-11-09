@@ -23,7 +23,13 @@
         android:name="${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
         tools:node="remove" />
 
-    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+    <!--
+      Android 6.0 (API 23) compatibility floor: these libraries ship with a
+      higher library minSdk but are safe to load behind runtime capability
+      checks. The modern Compose UI stays intact on newer releases.
+    -->
+    <uses-sdk
+        tools:overrideLibrary="androidx.compose.animation,androidx.compose.animation.core,androidx.compose.foundation,androidx.compose.foundation.layout,androidx.compose.material3,androidx.compose.material3.adaptive.navigationsuite,androidx.compose.material3.ripple,androidx.compose.runtime,androidx.compose.runtime.annotation,androidx.compose.runtime.retain,androidx.compose.runtime.saveable,androidx.compose.runtime.tracing,androidx.compose.ui,androidx.compose.ui.geometry,androidx.compose.ui.graphics,androidx.compose.ui.test.manifest,androidx.compose.ui.text,androidx.compose.ui.tooling,androidx.compose.ui.tooling.data,androidx.compose.ui.tooling.preview,androidx.compose.ui.unit,androidx.compose.ui.util,androidx.webkit,top.yukonga.miuix.kmp.blur,top.yukonga.miuix.kmp.nav,top.yukonga.miuix.kmp.shader,top.yukonga.miuix.kmp.squircle" />
 
     <application
         android:name=".KernelSUApplication"

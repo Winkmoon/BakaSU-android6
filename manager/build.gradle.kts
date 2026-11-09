@@ -36,7 +36,10 @@ spotless {
     }
 }
 
-extra["androidMinSdkVersion"] = 26
+// Android 6.0 (API 23) is the compatibility floor. Some UI dependencies are
+// built with a higher library minSdk and are opted into via
+// tools:overrideLibrary in the manifest, with runtime capability checks.
+extra["androidMinSdkVersion"] = 23
 extra["androidTargetSdkVersion"] = 37
 extra["androidCompileSdkVersion"] = 37
 extra["androidBuildToolsVersion"] = "36.1.0"

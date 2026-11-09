@@ -42,6 +42,18 @@ val isReleaseTask =
 android {
     namespace = "org.bakasu.bakasu"
 
+    // Android 5/6 only understand JAR (v1) signatures, while Android 7+
+    // verifies APK Signature Scheme v2. Emit both so one APK works on the
+    // full supported range, including Android 6.
+    signingConfigs {
+        configureEach {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = false
+            enableV4Signing = false
+        }
+    }
+
     buildTypes {
         debug {
             externalNativeBuild {
@@ -148,7 +160,7 @@ android {
         }
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64", "armeabi-v7a", "riscv64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
@@ -156,7 +168,7 @@ android {
         abi {
             isEnable = isReleaseTask
             reset()
-            include("arm64-v8a", "x86_64", "armeabi-v7a", "riscv64")
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
             isUniversalApk = true
         }
     }
@@ -167,6 +179,9 @@ android {
     }
 
     compileOptions {
+        // Backport java.time, java.util.Base64, collection additions and
+        // friends so the same APK runs on Android 6 (API 23).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = androidSourceCompatibility
         targetCompatibility = androidTargetCompatibility
     }
@@ -196,6 +211,8 @@ aboutLibraries {
 dependencies {
     lintChecks(project(":lint-rules"))
     baselineProfile(project(":baselineprofile"))
+
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(platform(libs.koin.bom))
     implementation(libs.koin.core)

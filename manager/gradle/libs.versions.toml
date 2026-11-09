@@ -1,6 +1,7 @@
 [versions]
 accompanist-drawablepainter = "0.37.3"
 agp = "9.4.1"
+desugar-jdk-libs = "2.1.5"
 gson = "2.14.0"
 kotlin = "2.4.20"
 materialKolor = "5.0.1"
@@ -16,7 +17,9 @@ kotlinx-serialization = "1.11.0"
 coil-compose = "2.7.0"
 ucrop = "2.2.11"
 markdown = "4.6.2"
-webkit = "1.17.1"
+# 1.15+ requires API 23/24; 1.14.0 is the newest Android-6-compatible line
+# and still provides WebViewAssetLoader used by the manager.
+webkit = "1.14.0"
 appiconloader = "1.5.0"
 hiddenapibypass = "6.1"
 parcelablelist = "2.0.1"
@@ -51,6 +54,7 @@ aboutLibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "abo
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
 [libraries]
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commons-compress" }
 xz = { module = "org.tukaani:xz", version.ref = "xz" }
