@@ -1,8 +1,11 @@
 use std::{
-    fs::File,
+    fs::{File, OpenOptions, Permissions, remove_file, set_permissions},
     io::Write,
     os::fd::{AsRawFd, OwnedFd},
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
     process::{Child, Command},
+    sync::atomic::{AtomicU32, Ordering},
     time::{Duration, Instant},
 };
 
@@ -28,21 +31,83 @@ use crate::android::{
 };
 
 const WAITSYS_FD_ENV: &str = "KSU_WAITSYS_FD";
+const WAITSYS_TEMP_DIRS: &[&str] = &["/data/local/tmp", "/data/adb"];
 
 struct Waitsys {
     child: Child,
     read_fd: OwnedFd,
+    /// Set when the executable was materialized as a real file because the
+    /// kernel does not provide memfd_create (Android 6 / older kernels).
+    temp_path: Option<PathBuf>,
+}
+
+/// Create an executable copy of waitsys for kernels without memfd_create.
+fn write_waitsys_temp(contents: &[u8]) -> Result<PathBuf> {
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let mut last_error: Option<anyhow::Error> = None;
+
+    for directory in WAITSYS_TEMP_DIRS {
+        let path = Path::new(directory).join(format!(
+            "ksud-waitsys-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        ));
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(file) => file,
+            Err(error) => {
+                last_error = Some(error.into());
+                continue;
+            }
+        };
+
+        if let Err(error) = file.write_all(contents).and_then(|_| file.flush()) {
+            let _ = remove_file(&path);
+            last_error = Some(error.into());
+            continue;
+        }
+        drop(file);
+
+        if let Err(error) = set_permissions(&path, Permissions::from_mode(0o700)) {
+            let _ = remove_file(&path);
+            last_error = Some(error.into());
+            continue;
+        }
+
+        return Ok(path);
+    }
+
+    Err(last_error
+        .unwrap_or_else(|| anyhow::anyhow!("no writable directory for waitsys"))
+        .context("failed to materialize waitsys"))
 }
 
 impl Waitsys {
     fn spawn() -> Result<Self> {
         let waitsys = assets::get_asset("waitsys").context("waitsys is not embedded")?;
-        let executable_fd = memfd_create("waitsys", MemfdFlags::CLOEXEC)
-            .context("failed to create waitsys memfd")?;
-        let mut executable = File::from(executable_fd);
-        executable
-            .write_all(&waitsys)
-            .context("failed to write waitsys to memfd")?;
+
+        // memfd_create is only available through bionic from API 30 and the
+        // kernel syscall is missing on some Android 6 kernels. Fall back to a
+        // private executable file when it is unavailable.
+        let (program, executable, temp_path) =
+            match memfd_create("waitsys", MemfdFlags::CLOEXEC) {
+                Ok(executable_fd) => {
+                    let mut executable = File::from(executable_fd);
+                    executable
+                        .write_all(&waitsys)
+                        .context("failed to write waitsys to memfd")?;
+                    let program = format!("/proc/self/fd/{}", executable.as_raw_fd());
+                    (program, Some(executable), None)
+                }
+                Err(error) => {
+                    warn!("memfd_create unavailable ({error}); using a temporary waitsys file");
+                    let path = write_waitsys_temp(&waitsys)?;
+                    (
+                        path.to_string_lossy().into_owned(),
+                        None,
+                        Some(path),
+                    )
+                }
+            };
 
         let (read_fd, write_fd) =
             pipe_with(PipeFlags::CLOEXEC).context("failed to create waitsys pipe")?;
@@ -52,13 +117,27 @@ impl Waitsys {
         )
         .context("set write_fd flags")?;
 
-        let mut cmd = Command::new(format!("/proc/self/fd/{}", executable.as_raw_fd()));
+        let mut cmd = Command::new(&program);
         cmd.env(WAITSYS_FD_ENV, format!("{}", write_fd.as_raw_fd()));
-        let child = cmd.spawn()?;
+        let child = match cmd.spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                drop(write_fd);
+                drop(executable);
+                if let Some(path) = &temp_path {
+                    let _ = remove_file(path);
+                }
+                return Err(error).context("failed to start waitsys");
+            }
+        };
 
         drop(write_fd);
         drop(executable);
-        Ok(Self { child, read_fd })
+        Ok(Self {
+            child,
+            read_fd,
+            temp_path,
+        })
     }
 
     fn wait_for_signal(&self, expected: u8, timeout: Duration) -> Result<()> {
@@ -99,7 +178,11 @@ impl Waitsys {
 
     fn terminate(&mut self) -> Result<()> {
         self.child.kill().ok();
-        self.child.wait().context("wait for waitsys")?;
+        let result = self.child.wait().context("wait for waitsys");
+        if let Some(path) = self.temp_path.take() {
+            let _ = remove_file(path);
+        }
+        result?;
         Ok(())
     }
 }

@@ -8,6 +8,7 @@ use std::{
     },
     path::{Path, PathBuf},
     process::Command,
+    sync::OnceLock,
 };
 
 use anyhow::{Context, Error, Ok, Result, bail};
@@ -28,14 +29,37 @@ use crate::{
 };
 
 type PropertyReadCallback = unsafe extern "C" fn(*mut c_void, *const c_char, *const c_char, u32);
+type PropertyReadCallbackFn =
+    unsafe extern "C" fn(*const c_void, PropertyReadCallback, *mut c_void);
+
+#[link(name = "dl")]
+unsafe extern "C" {
+    fn dlsym(handle: *mut c_void, symbol: *const c_char) -> *mut c_void;
+}
 
 unsafe extern "C" {
     fn __system_property_find(name: *const c_char) -> *const c_void;
-    fn __system_property_read_callback(
-        property_info: *const c_void,
-        callback: PropertyReadCallback,
-        cookie: *mut c_void,
-    );
+    fn __system_property_get(name: *const c_char, value: *mut c_char) -> i32;
+}
+
+/// `__system_property_read_callback` was added in API 26. Resolve it lazily so
+/// the binary also links and runs on Android 6 (API 23).
+fn property_read_callback_fn() -> Option<PropertyReadCallbackFn> {
+    static SYMBOL: OnceLock<Option<PropertyReadCallbackFn>> = OnceLock::new();
+    *SYMBOL.get_or_init(|| unsafe {
+        let symbol = dlsym(
+            std::ptr::null_mut(),
+            c"__system_property_read_callback".as_ptr(),
+        );
+        if symbol.is_null() {
+            None
+        } else {
+            Some(std::mem::transmute::<
+                *mut c_void,
+                PropertyReadCallbackFn,
+            >(symbol))
+        }
+    })
 }
 
 #[macro_export]
@@ -135,15 +159,27 @@ pub fn getprop(name: &str) -> Option<String> {
         return None;
     }
 
-    let mut value = None;
-    unsafe {
-        __system_property_read_callback(
-            property_info,
-            property_read_callback,
-            std::ptr::addr_of_mut!(value).cast(),
-        );
+    if let Some(read_callback) = property_read_callback_fn() {
+        let mut value = None;
+        unsafe {
+            read_callback(
+                property_info,
+                property_read_callback,
+                std::ptr::addr_of_mut!(value).cast(),
+            );
+        }
+        return value;
     }
-    value
+
+    // Android 6 and older do not have __system_property_read_callback.
+    // __system_property_get has existed since the first Android release.
+    let mut buffer = [0 as c_char; 128];
+    let length = unsafe { __system_property_get(name.as_ptr(), buffer.as_mut_ptr()) };
+    if length <= 0 {
+        return None;
+    }
+    let value = unsafe { CStr::from_ptr(buffer.as_ptr()) };
+    Some(value.to_string_lossy().into_owned())
 }
 
 pub fn is_safe_mode() -> bool {

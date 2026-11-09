@@ -224,7 +224,12 @@ fn assemble_bootstrap() {
 }
 
 fn build_mkbootfs(out_directory: &Path) {
-    const API_LEVEL: u32 = 26;
+    // Keep the helper binary aligned with the minimum supported Android
+    // release. It can be overridden for experiments without editing sources.
+    let api_level: u32 = env::var("KSU_ANDROID_API_LEVEL")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(23);
     const LIBRARY_NAME: &str = "mkbootfs";
 
     let target = env::var("TARGET").expect("TARGET not set");
@@ -232,15 +237,15 @@ fn build_mkbootfs(out_directory: &Path) {
         PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
     let (clang_target, asset_subdirectory) = match target.as_str() {
         "aarch64-linux-android" => (
-            format!("aarch64-linux-android{API_LEVEL}"),
+            format!("aarch64-linux-android{api_level}"),
             Path::new("bin/aarch64"),
         ),
         "armv7-linux-androideabi" => (
-            format!("armv7a-linux-androideabi{API_LEVEL}"),
+            format!("armv7a-linux-androideabi{api_level}"),
             Path::new("bin/arm"),
         ),
         "x86_64-linux-android" => (
-            format!("x86_64-linux-android{API_LEVEL}"),
+            format!("x86_64-linux-android{api_level}"),
             Path::new("bin/x86_64"),
         ),
         "riscv64-linux-android" => (
