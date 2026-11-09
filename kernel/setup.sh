@@ -2,6 +2,7 @@
 set -eu
 
 GKI_ROOT=$(pwd)
+KSU_REPO_URL=${KSU_REPO_URL:-https://github.com/Winkmoon/BakaSU-android6.git}
 
 display_usage() {
 	echo "Usage: $0 [--cleanup | <commit-or-tag>]"
@@ -50,7 +51,7 @@ setup_kernelsu() {
 	echo "[+] Setting up KernelSU..."
 	# Clone the repository and rename it to KernelSU
 	if [ ! -d "$GKI_ROOT/KernelSU" ]; then
-		git clone https://github.com/Baka-SU/BakaSU KernelSU
+		git clone "$KSU_REPO_URL" KernelSU
 		echo "[+] Repository cloned."
 	fi
 	cd "$GKI_ROOT/KernelSU"
@@ -99,7 +100,7 @@ setup_submodule() {
 	fi
 
     echo '[+] Setting up KernelSU as submodule...'
-    git submodule add https://github.com/Baka-SU/BakaSU KernelSU || echo '[!] Failed to add KernelSU as a submodule.'
+    git submodule add "$KSU_REPO_URL" KernelSU || echo '[!] Failed to add KernelSU as a submodule.'
     echo '[+] Done.'
 }
 
