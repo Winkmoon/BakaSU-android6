@@ -3,15 +3,14 @@ package org.bakasu.bakasu.data.script
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import android.util.Log
 import java.io.File
 import java.io.IOException
-import java.nio.file.Files
-import java.nio.file.LinkOption
 import java.security.MessageDigest
 import java.util.UUID
-import kotlin.io.path.ExperimentalPathApi
-import kotlin.io.path.deleteRecursively
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -265,18 +264,31 @@ class ScriptRepository(
      * Deletes [dir] without following symlinks (a script may have linked to anywhere), and as
      * root when the app cannot (root-owned files left by a run whose own cleanup failed).
      */
-    @OptIn(ExperimentalPathApi::class)
     private fun delete(dir: File) {
-        val path = dir.toPath()
-        if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) return
         try {
-            path.deleteRecursively()
+            deleteTree(dir)
         } catch (e: IOException) {
             Log.w(TAG, "cannot delete $dir, retrying as root", e)
             runCatching { cli.removeScriptDirectory(dir.absolutePath) }
                 .onSuccess { removed -> if (!removed) Log.w(TAG, "cannot remove $dir as root") }
                 .onFailure { Log.w(TAG, "cannot remove $dir as root", it) }
         }
+    }
+
+    /**
+     * java.nio.file/Path.deleteRecursively is API 26+. Use lstat so a symlink is
+     * removed itself rather than recursively deleting its target.
+     */
+    private fun deleteTree(file: File) {
+        val stat = try {
+            Os.lstat(file.absolutePath)
+        } catch (_: ErrnoException) {
+            return
+        }
+        if (OsConstants.S_ISDIR(stat.st_mode)) {
+            file.listFiles()?.forEach(::deleteTree)
+        }
+        if (!file.delete()) throw IOException("cannot delete ${file.absolutePath}")
     }
 
     private fun sha256(file: File): String {

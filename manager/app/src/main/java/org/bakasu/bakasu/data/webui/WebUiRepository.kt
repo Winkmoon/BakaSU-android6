@@ -5,7 +5,6 @@ import com.topjohnwu.superuser.Shell
 import com.topjohnwu.superuser.internal.UiThreadHandler
 import com.topjohnwu.superuser.io.SuFile
 import com.topjohnwu.superuser.io.SuFileInputStream
-import java.util.concurrent.CompletableFuture
 import org.bakasu.bakasu.data.shell.KsuCliRepository
 import org.bakasu.bakasu.domain.model.WebUiCommandResult
 import org.bakasu.bakasu.domain.model.WebUiModuleInfo
@@ -60,8 +59,11 @@ class WebUiRepository(
                     override fun onAddElement(s: String) = onStderr(s)
                 }
                 val future = shell.newJob().add(command).to(stdout, stderr).enqueue()
-                CompletableFuture.supplyAsync { future.get() }
-                    .thenAccept { result ->
+                // CompletableFuture is API 24+. A plain worker thread keeps
+                // WebUI commands working on Android 6 as well.
+                Thread({
+                    try {
+                        val result = future.get()
                         onComplete(
                             WebUiCommandResult(
                                 code = result.code,
@@ -69,8 +71,12 @@ class WebUiRepository(
                                 stderr = result.err.joinToString("\n"),
                             ),
                         )
+                    } catch (error: Throwable) {
+                        onComplete(WebUiCommandResult(-1, "", error.message.orEmpty()))
+                    } finally {
+                        close()
                     }
-                    .whenComplete { _, _ -> close() }
+                }, "webui-command").start()
             } catch (error: Throwable) {
                 onComplete(WebUiCommandResult(-1, "", error.message.orEmpty()))
                 close()

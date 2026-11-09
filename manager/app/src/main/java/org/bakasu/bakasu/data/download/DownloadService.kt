@@ -560,6 +560,9 @@ class DownloadService : Service() {
     }
 
     private fun createNotificationChannel() {
+        // Notification channels do not exist before Android 8.0. The
+        // NotificationCompat builder below still works on older releases.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.download_channel_name),
@@ -570,7 +573,12 @@ class DownloadService : Service() {
 
     private fun stopForegroundIfIdle() {
         if (activeJobs.isEmpty() || activeJobs.values.none { it.isActive }) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
             stopSelf()
         }
     }

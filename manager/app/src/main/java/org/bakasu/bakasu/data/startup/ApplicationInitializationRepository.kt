@@ -23,7 +23,10 @@ class ApplicationInitializationRepository(
     suspend fun initialize() {
         MainShell.setBuilder(ksuCliRepository.generateMainShellBuilder())
         Coil.setImageLoader(imageLoader)
-        File(application.dataDir, "webroot").mkdirs()
+        // Context#getDataDir is API 24; filesDir.parentFile is the same
+        // directory and has existed since the first Android release.
+        val dataDir = application.filesDir.parentFile ?: application.filesDir
+        File(dataDir, "webroot").mkdirs()
         Os.setenv("TMPDIR", application.cacheDir.absolutePath, true)
         applicationScope.launch {
             runCatching { flashRepository.getInstallEnvironment() }

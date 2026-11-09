@@ -1,5 +1,6 @@
 package org.bakasu.bakasu.ui.screen.moduleRepo
 
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -596,8 +597,15 @@ private fun ReleaseHeading(release: ModuleRelease, details: ModuleReleaseDetails
         iconPlaceholder = false,
     ) {
         if (publishedAt.isNotBlank()) {
+            val configuration = LocalConfiguration.current
+            val locale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                configuration.locales[0]
+            } else {
+                @Suppress("DEPRECATION")
+                configuration.locale
+            }
             Text(
-                releaseDate(publishedAt, LocalConfiguration.current.locales[0]),
+                releaseDate(publishedAt, locale),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

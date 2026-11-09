@@ -3,6 +3,7 @@ package org.bakasu.bakasu.ui
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -740,6 +741,10 @@ fun rememberMaterial3BlurBackdrop(
     pagerState: PagerState? = null,
     pagerPage: Int? = null,
 ): LayerBackdrop? {
+    // RenderEffect/RuntimeShader only exist on Android 12+. Keep the whole
+    // backdrop path out of the class-loading path on older releases.
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return null
+
     val themeConfig: ThemeConfig = koinInject()
     val backgroundRenderState = LocalBackgroundRenderState.current
     if (!enableBlur || !isRenderEffectSupported()) return null
