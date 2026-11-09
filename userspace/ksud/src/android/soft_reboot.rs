@@ -88,26 +88,21 @@ impl Waitsys {
         // memfd_create is only available through bionic from API 30 and the
         // kernel syscall is missing on some Android 6 kernels. Fall back to a
         // private executable file when it is unavailable.
-        let (program, executable, temp_path) =
-            match memfd_create("waitsys", MemfdFlags::CLOEXEC) {
-                Ok(executable_fd) => {
-                    let mut executable = File::from(executable_fd);
-                    executable
-                        .write_all(&waitsys)
-                        .context("failed to write waitsys to memfd")?;
-                    let program = format!("/proc/self/fd/{}", executable.as_raw_fd());
-                    (program, Some(executable), None)
-                }
-                Err(error) => {
-                    warn!("memfd_create unavailable ({error}); using a temporary waitsys file");
-                    let path = write_waitsys_temp(&waitsys)?;
-                    (
-                        path.to_string_lossy().into_owned(),
-                        None,
-                        Some(path),
-                    )
-                }
-            };
+        let (program, executable, temp_path) = match memfd_create("waitsys", MemfdFlags::CLOEXEC) {
+            Ok(executable_fd) => {
+                let mut executable = File::from(executable_fd);
+                executable
+                    .write_all(&waitsys)
+                    .context("failed to write waitsys to memfd")?;
+                let program = format!("/proc/self/fd/{}", executable.as_raw_fd());
+                (program, Some(executable), None)
+            }
+            Err(error) => {
+                warn!("memfd_create unavailable ({error}); using a temporary waitsys file");
+                let path = write_waitsys_temp(&waitsys)?;
+                (path.to_string_lossy().into_owned(), None, Some(path))
+            }
+        };
 
         let (read_fd, write_fd) =
             pipe_with(PipeFlags::CLOEXEC).context("failed to create waitsys pipe")?;

@@ -54,10 +54,9 @@ fn property_read_callback_fn() -> Option<PropertyReadCallbackFn> {
         if symbol.is_null() {
             None
         } else {
-            Some(std::mem::transmute::<
-                *mut c_void,
-                PropertyReadCallbackFn,
-            >(symbol))
+            Some(std::mem::transmute::<*mut c_void, PropertyReadCallbackFn>(
+                symbol,
+            ))
         }
     })
 }
