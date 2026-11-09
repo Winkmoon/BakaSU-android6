@@ -7,11 +7,11 @@
 
 一个 [`tiann/KernelSU`](https://github.com/tiann/KernelSU) 的下游分支, 添加了一些个人修改。
 
-[![最新发行](https://img.shields.io/github/v/release/Baka-SU/BakaSU?label=Release&logo=github)](https://github.com/Baka-SU/BakaSU/releases/latest)
-[![最新 CI 构建（nightly.link）](https://img.shields.io/badge/nightly.link-%E6%9C%80%E6%96%B0%20CI%20%E6%9E%84%E5%BB%BA-800080)](https://nightly.link/Baka-SU/BakaSU/workflows/build-manager/main)
+[![最新发行](https://img.shields.io/github/v/release/Winkmoon/BakaSU-android6?label=Release&logo=github)](https://github.com/Winkmoon/BakaSU-android6/releases/latest)
+[![最新 CI 构建（nightly.link）](https://img.shields.io/badge/nightly.link-%E6%9C%80%E6%96%B0%20CI%20%E6%9E%84%E5%BB%BA-800080)](https://nightly.link/Winkmoon/BakaSU-android6/workflows/build-manager/main)
 [![频道](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/BakaSU_Grp)
 [![Kernel License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg?logo=gnu)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![其他部分 License：GPL v3](https://img.shields.io/github/license/Baka-SU/BakaSU?logo=gnu)](../../LICENSE)
+[![其他部分 License：GPL v3](https://img.shields.io/github/license/Winkmoon/BakaSU-android6?logo=gnu)](../../LICENSE)
 
 ## 特性
 

@@ -7,11 +7,11 @@ Formerly known as: ReSukiSU
 
 A [`tiann/KernelSU`](https://github.com/tiann/KernelSU)'s downstream, added some personal changes.
 
-[![Latest release](https://img.shields.io/github/v/release/Baka-SU/BakaSU?label=Release&logo=github)](https://github.com/Baka-SU/BakaSU/releases/latest)
-[![Latest CI build (nightly.link)](https://img.shields.io/badge/nightly.link-Latest%20CI%20Build-800080)](https://nightly.link/Baka-SU/BakaSU/workflows/build-manager/main)
+[![Latest release](https://img.shields.io/github/v/release/Winkmoon/BakaSU-android6?label=Release&logo=github)](https://github.com/Winkmoon/BakaSU-android6/releases/latest)
+[![Latest CI build (nightly.link)](https://img.shields.io/badge/nightly.link-Latest%20CI%20Build-800080)](https://nightly.link/Winkmoon/BakaSU-android6/workflows/build-manager/main)
 [![Channel](https://img.shields.io/badge/Follow-Telegram-blue.svg?logo=telegram)](https://t.me/BakaSU_Grp)
 [![Kernel License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-orange.svg?logo=gnu)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
-[![Other part License：GPL v3](https://img.shields.io/github/license/Baka-SU/BakaSU?logo=gnu)](../LICENSE)
+[![Other part License：GPL v3](https://img.shields.io/github/license/Winkmoon/BakaSU-android6?logo=gnu)](../LICENSE)
 
 ## Features
 

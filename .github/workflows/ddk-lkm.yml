@@ -43,7 +43,8 @@ jobs:
 
     - name: Add Safe Directory
       run: |
-        git config --global --add safe.directory /__w/BakaSU/BakaSU
+        # The workspace path contains the repository name, so do not hardcode it.
+        git config --global --add safe.directory "${{ github.workspace }}"
 
     - name: Build kernelsu.ko
       if: ${{ inputs.arch == 'arm64' }}

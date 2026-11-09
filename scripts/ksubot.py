@@ -14,6 +14,9 @@ RUN_URL = os.environ.get("RUN_URL")
 TITLE = os.environ.get("TITLE")
 VERSION = os.environ.get("VERSION")
 BRANCH = os.environ.get("BRANCH")
+# Actions sets GITHUB_REPOSITORY. Keep a fallback so local runs still point at
+# this repository after a rename.
+REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "Winkmoon/BakaSU-android6")
 
 API_ID = 21724
 API_HASH = "3e0cb5efcd52300aec5994fdfc5bdc16"
@@ -107,7 +110,7 @@ Branch: {branch}
 ```
 {commit_line}
 [Workflow run]({run_url})
-[Get latest main Debug build](https://nightly.link/Baka-SU/BakaSU/workflows/build-manager/main/Manager-debug.zip)
+[Get latest main Debug build](https://nightly.link/{repository}/workflows/build-manager/main/Manager-debug.zip)
 """.strip()
 
 MAIN_UPDATED_MSG ="""
@@ -153,6 +156,7 @@ def get_caption():
         commit_message=escape_markdown_code(commit_message),
         commit_line=commit_line,
         run_url=escape_markdown_url(RUN_URL),
+        repository=escape_markdown_url(REPOSITORY),
     )
     if BRANCH != "main" and GITHUB_REF_TYPE != "tag":
         msg += "\n⚠️⚠️*DEV VERSION, PLEASE BACKUP BEFORE INSTALLATION*⚠️⚠️"
@@ -167,6 +171,7 @@ def get_caption_for_debug():
         commit_message=escape_markdown_code(commit_message),
         commit_line=commit_line,
         run_url=escape_markdown_url(RUN_URL),
+        repository=escape_markdown_url(REPOSITORY),
     )
     if BRANCH != "main" and GITHUB_REF_TYPE != "tag":
         msg += "\n⚠️⚠️*DEV VERSION, PLEASE BACKUP BEFORE INSTALLATION*⚠️⚠️"
