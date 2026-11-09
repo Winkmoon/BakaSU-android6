@@ -1,0 +1,15 @@
+// Local-only SDK overrides for hosts where the SDK-pinned NDK/build-tools
+// are not installed. Values come from scripts/build-local.sh.
+gradle.projectsLoaded {
+    def root = gradle.rootProject
+    root.afterEvaluate {
+        def ndk = System.getenv("LOCAL_NDK_VERSION")
+        def buildTools = System.getenv("LOCAL_BUILD_TOOLS_VERSION")
+        if (ndk) {
+            root.ext.set("androidCompileNdkVersion", ndk)
+        }
+        if (buildTools) {
+            root.ext.set("androidBuildToolsVersion", buildTools)
+        }
+    }
+}
