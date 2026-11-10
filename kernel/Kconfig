@@ -3,6 +3,9 @@ menu "KernelSU"
 config KSU
 	  tristate "KernelSU function support"
       select KALLSYMS
+      select CRYPTO
+      select CRYPTO_SHA256
+      select CRYPTO_MANAGER
 	  default y
 	  help
 		Enable kernel-level root privileges on Android System.

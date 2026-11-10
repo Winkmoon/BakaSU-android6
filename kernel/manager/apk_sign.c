@@ -134,7 +134,7 @@ static bool check_block(struct file *fp, loff_t *pos, loff_t block_end, u8 *matc
     if (certificate_size > INT_MAX || certificate_size > (u64)(certificates_end - *pos))
         return false;
 
-#define CERT_MAX_LENGTH 1024
+#define CERT_MAX_LENGTH 4096 // common RSA-2048/3072 DER certs exceed 1 KiB
     if (certificate_size > CERT_MAX_LENGTH) {
         pr_info("cert length overlimit\n");
         return false;
