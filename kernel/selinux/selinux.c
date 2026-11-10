@@ -57,6 +57,21 @@ void ksu_selinux_domain_init(void)
     if (ksu_domain_probed)
         return;
 
+    /*
+     * 3.x has no extended-permission sepolicy implementation, so the
+     * advanced ksu domain can never be created there.  Select the standard
+     * domain immediately: this must work before the SELinux policy is
+     * loaded, because init.rc is injected during first-stage boot.
+     */
+    if (!ksu_selinux_advanced_supported()) {
+        ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
+        ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
+        ksu_domain_legacy = true;
+        ksu_domain_probed = true;
+        pr_info_once("BakaSU: 3.x SELinux, using legacy domain %s\n", KERNEL_SU_CONTEXT_LEGACY);
+        return;
+    }
+
     if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT)) {
         ksu_selected_domain = KERNEL_SU_DOMAIN;
         ksu_selected_context = KERNEL_SU_CONTEXT;
@@ -65,21 +80,7 @@ void ksu_selinux_domain_init(void)
         return;
     }
 
-    if (!ksu_selinux_advanced_supported()) {
-        if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT_LEGACY)) {
-            ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
-            ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
-            ksu_domain_legacy = true;
-            ksu_domain_probed = true;
-            pr_warn("BakaSU: %s unavailable, using legacy domain %s\n", KERNEL_SU_CONTEXT, KERNEL_SU_CONTEXT_LEGACY);
-            return;
-        }
-    } else {
-        pr_info_once("BakaSU: advanced SELinux domain not present yet, deferring fallback\n");
-        return;
-    }
-
-    pr_warn_once("BakaSU: neither %s nor %s exists yet, will retry\n", KERNEL_SU_CONTEXT, KERNEL_SU_CONTEXT_LEGACY);
+    pr_info_once("BakaSU: advanced SELinux domain not present yet, deferring fallback\n");
 }
 
 #ifdef CONFIG_KSU_SUSFS
