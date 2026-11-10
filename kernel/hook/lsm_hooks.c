@@ -83,6 +83,7 @@ static void ksu_handle_bprm_committed_creds(struct linux_binprm *bprm)
 }
 #endif
 
+#ifdef CONFIG_KEYS
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0) || defined(KSU_COMPAT_KEY_NEED_PERM_AS_ENUM)
 static int ksu_handle_key_permission(key_ref_t key_ref, const struct cred *cred, enum key_need_perm need_perm)
 #else
@@ -101,6 +102,7 @@ static int ksu_handle_key_permission(key_ref_t key_ref, const struct cred *cred,
     setup_ksu_cred_session_keyring();
     return 0;
 }
+#endif /* CONFIG_KEYS */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || defined(KSU_COMPAT_HAS_LIST_OF_LSM_HOOKS)
 #include <linux/lsm_hooks.h>
@@ -119,7 +121,9 @@ static struct security_hook_list ksu_hooks[] = {
     LSM_HOOK_INIT(bprm_committed_creds, ksu_handle_bprm_committed_creds),
 #endif
 
+#ifdef CONFIG_KEYS
     LSM_HOOK_INIT(key_permission, ksu_handle_key_permission),
+#endif
 };
 
 void __init ksu_lsm_hook_built_in_init(void)
@@ -158,6 +162,12 @@ void __init ksu_lsm_hook_built_in_init(void)
 #define IF_KSU_COMPAT_NO_POST_EXECVE_HOOK(x)
 #endif
 
+#ifdef CONFIG_KEYS
+#define IF_CONFIG_KEYS(x) x
+#else
+#define IF_CONFIG_KEYS(x)
+#endif
+
 #define LSM_HOOK_LIST(HOOK_ITEM)                                                                                       \
     HOOK_ITEM(inode_rename, ksu_inode_rename,                                                                          \
               (struct inode * old_inode, struct dentry * old_dentry, struct inode * new_inode,                         \
@@ -170,8 +180,8 @@ void __init ksu_lsm_hook_built_in_init(void)
         HOOK_ITEM(file_permission, ksu_file_permission, (struct file * file, int mask), (file, mask)))                 \
     IF_KSU_COMPAT_NO_POST_EXECVE_HOOK(                                                                                 \
         HOOK_ITEM(bprm_committed_creds, ksu_handle_bprm_committed_creds, (struct linux_binprm * bprm), (bprm)))        \
-    HOOK_ITEM(key_permission, ksu_handle_key_permission, (key_ref_t key_ref, const struct cred *cred, unsigned perm),  \
-              (key_ref, cred, perm))
+    IF_CONFIG_KEYS(HOOK_ITEM(key_permission, ksu_handle_key_permission,                                                \
+                             (key_ref_t key_ref, const struct cred *cred, unsigned perm), (key_ref, cred, perm)))
 
 #define STRIP_PARENS(...) __VA_ARGS__
 

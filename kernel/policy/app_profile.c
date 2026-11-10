@@ -98,6 +98,9 @@ static bool has_call_to_spin_lock = false;
 // https://github.com/rsuntk/KernelSU/blob/af9072e19d125a94797ae3c473e7e94c3d8c1bcc/kernel/app_profile.c#L79
 void disable_seccomp(void)
 {
+#ifndef CONFIG_SECCOMP
+    return;
+#else
     // https://github.com/backslashxx/KernelSU/tree/e28930645e764b9f0e5d0d1b0d5e236464939075/kernel/app_profile.c
     if (!current->seccomp.mode) {
         return;
@@ -153,6 +156,7 @@ void disable_seccomp(void)
     seccomp_filter_release(fake);
     kfree(fake);
 #endif
+#endif /* CONFIG_SECCOMP */
 }
 
 int escape_with_root_profile(void)
@@ -238,7 +242,9 @@ int escape_with_root_profile(void)
     memcpy(&cred->cap_bset, &profile->capabilities.effective, sizeof(cred->cap_bset));
     if (profile->uid != 0) {
         memcpy(&cred->cap_inheritable, &profile->capabilities.effective, sizeof(cred->cap_inheritable));
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
         memcpy(&cred->cap_ambient, &profile->capabilities.effective, sizeof(cred->cap_ambient));
+#endif
     }
 
     setup_groups(profile, cred);

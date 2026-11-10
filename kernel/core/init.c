@@ -3,10 +3,12 @@
 #include <linux/kobject.h>
 #include <linux/module.h>
 #include <linux/rcupdate.h>
+#include <linux/version.h> /* LINUX_VERSION_CODE, KERNEL_VERSION macros */
 #ifndef MODULE
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0)
 #include <generated/compile.h>
 #endif
-#include <linux/version.h> /* LINUX_VERSION_CODE, KERNEL_VERSION macros */
+#endif
 #include <linux/moduleparam.h>
 
 #ifdef CONFIG_KSU_SUSFS

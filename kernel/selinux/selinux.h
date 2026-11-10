@@ -9,7 +9,15 @@
 #define KSU_COMPAT_USE_SELINUX_STATE
 #endif
 
+// 3.x SELinux policies cannot be extended with the 4.x extended-permission
+// and avtab APIs used by apply_kernelsu_rules(). Android 6 images normally
+// ship a "su" domain, so use it as the legacy root domain instead of creating
+// a new "ksu" type that would not resolve.
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
+#define KERNEL_SU_DOMAIN "su"
+#else
 #define KERNEL_SU_DOMAIN "ksu"
+#endif
 #define KERNEL_SU_FILE "ksu_file"
 
 #define KERNEL_SU_CONTEXT "u:r:" KERNEL_SU_DOMAIN ":s0"

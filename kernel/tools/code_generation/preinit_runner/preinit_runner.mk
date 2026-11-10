@@ -9,7 +9,10 @@ KSU_HEADERS_INSTALL_OUTPUT := $(shell $(MAKE) -s -C "$(abspath $(srctree))" \
 	headers_install INSTALL_HDR_PATH="$(abspath $(objtree))/usr")
 endif
 
-ifneq ($(wildcard $(KSU_UAPI_INC)/linux/unistd.h),)
+ifeq ($(shell test \( $(VERSION) -lt 3 -o \( $(VERSION) -eq 3 -a $(PATCHLEVEL) -lt 17 \) \) && echo y),y)
+$(warning -- $(REPO_NAME): preinit requires memfd_create (3.17+), disabled)
+ccflags-y += -DKSU_NO_PREINIT
+else ifneq ($(wildcard $(KSU_UAPI_INC)/linux/unistd.h),)
 kernelsu-objs += preinit/preinit.o
 kernelsu-objs += preinit/blob.o
 

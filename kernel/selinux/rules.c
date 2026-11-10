@@ -248,12 +248,14 @@ void apply_kernelsu_rules()
     ksu_allow(db, KERNEL_SU_DOMAIN, ALL, ALL, ALL);
 
     // allow us do any ioctl
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
     if (db->policyvers >= POLICYDB_VERSION_XPERMS_IOCTL) {
         ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "blk_file", ALL);
         ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "fifo_file", ALL);
         ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "chr_file", ALL);
         ksu_allowxperm(db, KERNEL_SU_DOMAIN, ALL, "file", ALL);
     }
+#endif
 
     // our ksud triggered by init
     ksu_allow(db, "init", KERNEL_SU_DOMAIN, ALL, ALL);

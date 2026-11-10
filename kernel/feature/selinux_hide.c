@@ -1,4 +1,6 @@
 #include "selinux_hide.h"
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 #include <linux/cred.h>
 #include <linux/cpu.h>
 #include <linux/memory.h>
@@ -1835,3 +1837,4 @@ allow:
     avd->allowed = 0xffffffff;
     goto out;
 }
+#endif /* LINUX_VERSION_CODE >= 4.2.0 */

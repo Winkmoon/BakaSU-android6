@@ -16,6 +16,18 @@
 #endif
 #include "arch.h"
 
+#ifndef UTS_MACHINE
+#if defined(CONFIG_ARM64)
+#define UTS_MACHINE "aarch64"
+#elif defined(CONFIG_X86_64)
+#define UTS_MACHINE "x86_64"
+#elif defined(CONFIG_ARM)
+#define UTS_MACHINE "arm"
+#else
+#define UTS_MACHINE "unknown"
+#endif
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 #if defined(__aarch64__)
 #define KSU_SYS_PREFIX(name) __arm64_sys_##name
@@ -223,10 +235,10 @@ static inline void inode_unlock(struct inode *inode)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
-#define ksu_get_uid_t(x) *(unsigned int *)&(x)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(CONFIG_UIDGID_STRICT_TYPE_CHECKS)
+#define ksu_get_uid_t(x) (x)
 #else
-#define ksu_get_uid_t(x) (x.val)
+#define ksu_get_uid_t(x) ((x).val)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
@@ -369,10 +381,14 @@ extern void setup_ksu_cred_session_keyring(void);
 static inline struct key *ksu_get_session_keyring(const struct cred *cred)
 {
 // https://github.com/torvalds/linux/commit/3a50597de8635cd05133bd12c95681c82fe7b878
+#if defined(CONFIG_KEYS)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
     return rcu_dereference(cred->session_keyring);
 #else
     return rcu_dereference(current->cred->tgcred->session_keyring);
+#endif
+#else
+    return NULL;
 #endif
 }
 

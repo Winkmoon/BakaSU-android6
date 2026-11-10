@@ -4,21 +4,58 @@
 #include <linux/version.h>
 #include <linux/sched.h>
 
+// https://github.com/torvalds/linux/commit/b21507e272627c434e8dd74e8d51fd8245281b59
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SETPROCATTR_USE_NEW_PROTOTYPE)
+typedef int (*setprocattr_fn)(const char *name, void *value, size_t size);
+#else
+typedef int (*setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
+/*
+ * SELinux hide relies on 4.2+ LSM hook lists and 4.x extended permission
+ * structures. Keep the interface available on 3.x kernels, but compile the
+ * optional feature out instead of breaking manager detection and root grants.
+ */
+static inline void ksu_selinux_hide_init(void)
+{
+}
+static inline void ksu_selinux_hide_exit(void)
+{
+}
+static inline void ksu_selinux_hide_drop_backup_if_unused(void)
+{
+}
+static inline void ksu_selinux_hide_handle_second_stage(void)
+{
+}
+static inline void ksu_selinux_hide_handle_post_fs_data(void)
+{
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SETPROCATTR_USE_NEW_PROTOTYPE)
+static inline int ksu_handle_selinux_setprocattr(const char *name, void *value, size_t size)
+{
+    return 0;
+}
+#else
+static inline int ksu_handle_selinux_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
+{
+    return 0;
+}
+#endif
+#else
 void ksu_selinux_hide_init();
 void ksu_selinux_hide_exit();
 void ksu_selinux_hide_drop_backup_if_unused();
 void ksu_selinux_hide_handle_second_stage();
 void ksu_selinux_hide_handle_post_fs_data();
 
-// https://github.com/torvalds/linux/commit/b21507e272627c434e8dd74e8d51fd8245281b59
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SETPROCATTR_USE_NEW_PROTOTYPE)
-typedef int (*setprocattr_fn)(const char *name, void *value, size_t size);
-
 int ksu_handle_selinux_setprocattr(const char *name, void *value, size_t size);
 #else
-typedef int (*setprocattr_fn)(struct task_struct *p, char *name, void *value, size_t size);
-
 int ksu_handle_selinux_setprocattr(struct task_struct *p, char *name, void *value, size_t size);
+#endif
 #endif
 
 #endif

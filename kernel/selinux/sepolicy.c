@@ -17,7 +17,9 @@
 #include "klog.h" // IWYU pragma: keep
 #include "ss/symtab.h"
 #include "compat/kernel_compat.h" // Add check Huawei Device
+#include <linux/errno.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 #define KSU_SUPPORT_ADD_TYPE
 
 //////////////////////////////////////////////////////
@@ -1258,3 +1260,102 @@ out:
     return ERR_PTR(ret);
 }
 #endif
+
+#else /* LINUX_VERSION_CODE < 4.2.0 */
+
+int ksu_dup_policydb(struct policydb *old_db, struct policydb *new_db)
+{
+    return -EOPNOTSUPP;
+}
+
+void ksu_destroy_policydb(struct policydb *db)
+{
+}
+
+bool ksu_type(struct policydb *db, const char *name, const char *attr)
+{
+    return false;
+}
+
+bool ksu_attribute(struct policydb *db, const char *name)
+{
+    return false;
+}
+
+bool ksu_permissive(struct policydb *db, const char *type)
+{
+    return false;
+}
+
+bool ksu_enforce(struct policydb *db, const char *type)
+{
+    return false;
+}
+
+bool ksu_typeattribute(struct policydb *db, const char *type, const char *attr)
+{
+    return false;
+}
+
+bool ksu_exists(struct policydb *db, const char *type)
+{
+    return false;
+}
+
+bool ksu_allow(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *perm)
+{
+    return false;
+}
+
+bool ksu_deny(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *perm)
+{
+    return false;
+}
+
+bool ksu_auditallow(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *perm)
+{
+    return false;
+}
+
+bool ksu_dontaudit(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *perm)
+{
+    return false;
+}
+
+bool ksu_allowxperm(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *range)
+{
+    return false;
+}
+
+bool ksu_auditallowxperm(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *range)
+{
+    return false;
+}
+
+bool ksu_dontauditxperm(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *range)
+{
+    return false;
+}
+
+bool ksu_type_transition(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *def,
+                         const char *obj)
+{
+    return false;
+}
+
+bool ksu_type_change(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *def)
+{
+    return false;
+}
+
+bool ksu_type_member(struct policydb *db, const char *src, const char *tgt, const char *cls, const char *def)
+{
+    return false;
+}
+
+bool ksu_genfscon(struct policydb *db, const char *fs_name, const char *path, const char *ctx)
+{
+    return false;
+}
+
+#endif /* LINUX_VERSION_CODE >= 4.2.0 */
