@@ -1,5 +1,38 @@
 #include "selinux_hide.h"
 
+#if !defined(CONFIG_KALLSYMS_ALL)
+/*
+ * SELinux hide resolves static SELinux symbols by name (write_op, sidtab,
+ * security_dump_masked_av, ...).  Those symbols are only available through
+ * kallsyms when KALLSYMS_ALL is enabled.  Do not force DEBUG_KERNEL/
+ * KALLSYMS_ALL on every kernel; compile the feature out cleanly instead.
+ */
+void ksu_selinux_hide_init(void)
+{
+}
+void ksu_selinux_hide_exit(void)
+{
+}
+void ksu_selinux_hide_drop_backup_if_unused(void)
+{
+}
+void ksu_selinux_hide_handle_second_stage(void)
+{
+}
+void ksu_selinux_hide_handle_post_fs_data(void)
+{
+}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0) || defined(KSU_COMPAT_SETPROCATTR_USE_NEW_PROTOTYPE)
+int ksu_handle_selinux_setprocattr(const char *name, void *value, size_t size)
+#else
+int ksu_handle_selinux_setprocattr(struct task_struct *p, char *name, void *value, size_t size)
+#endif
+{
+    return 0;
+}
+
+#else /* CONFIG_KALLSYMS_ALL */
+
 #include <linux/cred.h>
 #include <linux/cpu.h>
 #include <linux/memory.h>
@@ -1866,3 +1899,5 @@ allow:
     avd->allowed = 0xffffffff;
     goto out;
 }
+
+#endif /* CONFIG_KALLSYMS_ALL */

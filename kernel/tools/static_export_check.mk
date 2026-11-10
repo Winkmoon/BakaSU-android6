@@ -13,18 +13,22 @@ define check_symbol_export
   endif
 endef
 
-# Reason: selinux_hide
+# Reason: selinux_hide.  Without KALLSYMS_ALL, selinux_hide.c is compiled
+# as a no-op stub, so its private SELinux symbols are not required.
+ifdef CONFIG_KALLSYMS_ALL
 $(eval $(call check_symbol_export, static ssize_t (*write_op[]), $(srctree)/security/selinux/selinuxfs.c, write_op))
-
-# Reason: selinux_hide
 $(eval $(call check_symbol_export, static const struct file_operations sel_handle_status_ops, $(srctree)/security/selinux/selinuxfs.c, sel_handle_status_ops))
+endif
 
-# if no selinux_state, we should check selinux_status_page, selinux_status_lock, sel_mutex, policy_rwlock and sidtab has been NOT static.
+# if no selinux_state, we should check sel_mutex and policy_rwlock are NOT static.
+# These are used by policydb duplication even when hide is stubbed.
 ifneq ($(shell grep -q "struct selinux_state " $(srctree)/security/selinux/include/security.h; echo $$?),0)
+ifdef CONFIG_KALLSYMS_ALL
     # Reason: selinux_hide
     $(eval $(call check_symbol_export, static struct page *selinux_status_page, $(srctree)/security/selinux/ss/status.c, selinux_status_page))
     $(eval $(call check_symbol_export, static DEFINE_MUTEX(selinux_status_lock), $(srctree)/security/selinux/ss/status.c, selinux_status_lock))
     $(eval $(call check_symbol_export, static struct sidtab, $(srctree)/security/selinux/ss/services.c, context_struct_compute_av func))
+endif
 
     # Reason: safe policydb patch/dup
     $(eval $(call check_symbol_export, static DEFINE_MUTEX(sel_mutex), $(srctree)/security/selinux/selinuxfs.c, sel_mutex))
@@ -37,6 +41,8 @@ ifeq ($(shell test $(VERSION) -lt 4 -o \( $(VERSION) -eq 4 -a $(PATCHLEVEL) -lt 
     $(eval $(call check_symbol_export, static struct security_operations selinux_ops, $(srctree)/security/selinux/hooks.c, selinux_ops))
 endif
 
+ifdef CONFIG_KALLSYMS_ALL
 # Reason: selinux_hide
 $(eval $(call check_symbol_export, static void security_dump_masked_av, $(srctree)/security/selinux/ss/services.c, security_dump_masked_av func))
 $(eval $(call check_symbol_export, static void context_struct_compute_av, $(srctree)/security/selinux/ss/services.c, context_struct_compute_av func))
+endif
