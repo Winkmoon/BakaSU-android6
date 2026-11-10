@@ -166,6 +166,7 @@ static bool check_block(struct file *fp, loff_t *pos, loff_t block_end, u8 *matc
         if (certificate_size == sign_key.size && strcmp(sign_key.sha256, hash_str) == 0) {
             if (matched_index)
                 *matched_index = i;
+            pr_info("BakaSU: manager signature matched key #%u (%s)\n", i, hash_str);
             signature_valid = true;
             break;
         }
@@ -440,5 +441,9 @@ bool is_manager_apk(char *path, u8 *signature_index)
         return false;
     }
 #endif
-    return check_v2_signature(path, signature_index);
+    bool valid = check_v2_signature(path, signature_index);
+
+    if (valid && signature_index)
+        pr_info("BakaSU: manager APK recognized: %s (signature index %u)\n", path, *signature_index);
+    return valid;
 }
