@@ -97,7 +97,7 @@ static int do_get_info(void __user *arg)
         cmd.version = ksuver_override;
 
     if (ksuflags_override)
-        cmd.flags = ksuflags_override;
+        cmd.flags = ksuflags_override | (cmd.flags & KSU_GET_INFO_FLAG_MANAGER);
 #endif
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
@@ -135,7 +135,7 @@ static int do_get_info_legacy(void __user *arg)
         cmd.version = ksuver_override;
 
     if (ksuflags_override)
-        cmd.flags = ksuflags_override;
+        cmd.flags = ksuflags_override | (cmd.flags & KSU_GET_INFO_FLAG_MANAGER);
 #endif
 
     if (copy_to_user(arg, &cmd, sizeof(cmd))) {
