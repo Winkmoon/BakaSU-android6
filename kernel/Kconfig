@@ -77,6 +77,22 @@ config KSU_MULTI_MANAGER_SUPPORT
 	help
 		Enable multi KernelSU manager support
 
+config KSU_ALLOW_V1_SIGNATURE
+	bool "Allow v1 signatures on manager APKs (development only)"
+	depends on KSU && !KSU_DISABLE_MANAGER
+	default n
+	help
+	  Android 6 only verifies JAR/v1 signatures, so a manager APK that
+	  must install there is signed with both v1 and v2. Enable this to
+	  accept such APKs.
+
+	  WARNING: the kernel only checks the certificate hash from the v2
+	  block and does not verify the v2 signature itself. On Android 6 the
+	  package manager uses v1, so enabling this can let a crafted APK pair
+	  a trusted v2 certificate with an attacker-controlled v1 signer.
+	  Enable only for development images, or when manager installation is
+	  otherwise trusted.
+
 choice
 	prompt "KernelSU Hooking Method"
 	depends on KSU

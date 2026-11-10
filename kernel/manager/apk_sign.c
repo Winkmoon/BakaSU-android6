@@ -196,6 +196,7 @@ struct zip_entry_header {
     uint16_t extra_field_length;
 } __attribute__((packed));
 
+#ifndef CONFIG_KSU_ALLOW_V1_SIGNATURE
 // This is a necessary but not sufficient condition, but it is enough for us
 static bool has_v1_signature_file(struct file *fp)
 {
@@ -231,6 +232,7 @@ static bool has_v1_signature_file(struct file *fp)
 
     return false;
 }
+#endif /* !CONFIG_KSU_ALLOW_V1_SIGNATURE */
 
 static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
 {
@@ -338,6 +340,7 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
         v2_signing_valid = false;
     }
 
+#ifndef CONFIG_KSU_ALLOW_V1_SIGNATURE
     if (v2_signing_valid) {
         int has_v1_signing = has_v1_signature_file(fp);
         if (has_v1_signing) {
@@ -345,6 +348,7 @@ static __always_inline bool check_v2_signature(char *path, u8 *signature_index)
             goto invalid;
         }
     }
+#endif
     goto clean;
 
 invalid:
