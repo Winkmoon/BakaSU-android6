@@ -19,6 +19,120 @@
 #include "compat/kernel_compat.h" // Add check Huawei Device
 #include <linux/errno.h>
 
+void ksu_destroy_policydb(struct policydb *db)
+{
+    policydb_destroy(db);
+}
+
+// handle backport
+extern rwlock_t *ksu_policy_rwlock_ptr;
+
+static inline void ksu_lock_sepolicy_legacy(void)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(KSU_COMPAT_HAS_POLICY_MUTEX)
+// 4.14 - 5.10
+#if defined(KSU_COMPAT_USE_SELINUX_STATE)
+    read_lock(&selinux_state.ss->policy_rwlock);
+// 4.14-
+#else
+    read_lock(ksu_policy_rwlock_ptr);
+#endif
+#endif
+}
+
+static inline void ksu_unlock_sepolicy_legacy(void)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(KSU_COMPAT_HAS_POLICY_MUTEX)
+// 4.14 - 5.10
+#if defined(KSU_COMPAT_USE_SELINUX_STATE)
+    read_unlock(&selinux_state.ss->policy_rwlock);
+// 4.14-
+#else
+    read_unlock(ksu_policy_rwlock_ptr);
+#endif
+#endif
+}
+
+// result is len or errno
+int ksu_dup_policydb(struct policydb *old_db, struct policydb *new_db)
+{
+    struct policy_file fp = { 0 };
+    void *data;
+    int ret = 0;
+    int len = 0;
+
+    ksu_lock_sepolicy_legacy();
+
+    // Some device policy db seems not marking type itself in type_attr_map_array
+    // policydb_read() adds each type to its own attribute map, so old_db->policydb.len may be smaller
+    // preserve one ebitmap entry for this condition to avoid trigger -EINVAL
+    len = old_db->len + (size_t)old_db->p_types.nprim * (sizeof(u32) + sizeof(u64));
+
+    ksu_unlock_sepolicy_legacy();
+
+    data = vmalloc(len);
+    if (!data) {
+        pr_err("alloc policy buffer len %d\n", len);
+        ret = -ENOMEM;
+        goto out_free_data;
+    }
+
+    fp.data = data;
+    fp.len = len;
+
+    ksu_lock_sepolicy_legacy();
+    ret = policydb_write(old_db, &fp);
+    if (ret) {
+        pr_err("sepolicy: policydb_write: %d\n", ret);
+        ksu_unlock_sepolicy_legacy();
+        goto out_free_data;
+    }
+    len -= fp.len;
+    ksu_unlock_sepolicy_legacy();
+
+    // https://android-review.googlesource.com/c/kernel/common/+/3009995
+    // Android won't add these flags to policydb_write....
+    // fixup config
+    // 4*2+8+4
+    static const size_t kConfigOff = 20;
+    if (len >= kConfigOff + sizeof(u32)) {
+        u32 *config_ptr = data + kConfigOff;
+#ifdef KSU_COMPAT_HAS_POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE
+        if (old_db->android_netlink_route) {
+            pr_info("adding POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE\n");
+            *config_ptr |= POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE;
+        }
+#endif
+#ifdef KSU_COMPAT_HAS_POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH
+        if (old_db->android_netlink_getneigh) {
+            pr_info("adding POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH\n");
+            *config_ptr |= POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH;
+        }
+#endif
+    }
+
+    // rewind fp
+    fp.data = data;
+    fp.len = len;
+
+    ret = policydb_read(new_db, &fp);
+    if (ret) {
+        pr_err("sepolicy: policydb_read: %d\n", ret);
+        goto out_free_data;
+    }
+
+    new_db->len = len;
+
+    vfree(data);
+    ret = len;
+
+    return ret;
+
+out_free_data:
+    vfree(data);
+    return ret;
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 #define KSU_SUPPORT_ADD_TYPE
 
@@ -1106,120 +1220,6 @@ bool ksu_genfscon(struct policydb *db, const char *fs_name, const char *path, co
     return add_genfscon(db, fs_name, path, ctx);
 }
 
-void ksu_destroy_policydb(struct policydb *db)
-{
-    policydb_destroy(db);
-}
-
-// handle backport
-extern rwlock_t *ksu_policy_rwlock_ptr;
-
-static inline void ksu_lock_sepolicy_legacy(void)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(KSU_COMPAT_HAS_POLICY_MUTEX)
-// 4.14 - 5.10
-#if defined(KSU_COMPAT_USE_SELINUX_STATE)
-    read_lock(&selinux_state.ss->policy_rwlock);
-// 4.14-
-#else
-    read_lock(ksu_policy_rwlock_ptr);
-#endif
-#endif
-}
-
-static inline void ksu_unlock_sepolicy_legacy(void)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) && !defined(KSU_COMPAT_HAS_POLICY_MUTEX)
-// 4.14 - 5.10
-#if defined(KSU_COMPAT_USE_SELINUX_STATE)
-    read_unlock(&selinux_state.ss->policy_rwlock);
-// 4.14-
-#else
-    read_unlock(ksu_policy_rwlock_ptr);
-#endif
-#endif
-}
-
-// result is len or errno
-int ksu_dup_policydb(struct policydb *old_db, struct policydb *new_db)
-{
-    struct policy_file fp = { 0 };
-    void *data;
-    int ret = 0;
-    int len = 0;
-
-    ksu_lock_sepolicy_legacy();
-
-    // Some device policy db seems not marking type itself in type_attr_map_array
-    // policydb_read() adds each type to its own attribute map, so old_db->policydb.len may be smaller
-    // preserve one ebitmap entry for this condition to avoid trigger -EINVAL
-    len = old_db->len + (size_t)old_db->p_types.nprim * (sizeof(u32) + sizeof(u64));
-
-    ksu_unlock_sepolicy_legacy();
-
-    data = vmalloc(len);
-    if (!data) {
-        pr_err("alloc policy buffer len %d\n", len);
-        ret = -ENOMEM;
-        goto out_free_data;
-    }
-
-    fp.data = data;
-    fp.len = len;
-
-    ksu_lock_sepolicy_legacy();
-    ret = policydb_write(old_db, &fp);
-    if (ret) {
-        pr_err("sepolicy: policydb_write: %d\n", ret);
-        ksu_unlock_sepolicy_legacy();
-        goto out_free_data;
-    }
-    len -= fp.len;
-    ksu_unlock_sepolicy_legacy();
-
-    // https://android-review.googlesource.com/c/kernel/common/+/3009995
-    // Android won't add these flags to policydb_write....
-    // fixup config
-    // 4*2+8+4
-    static const size_t kConfigOff = 20;
-    if (len >= kConfigOff + sizeof(u32)) {
-        u32 *config_ptr = data + kConfigOff;
-#ifdef KSU_COMPAT_HAS_POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE
-        if (old_db->android_netlink_route) {
-            pr_info("adding POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE\n");
-            *config_ptr |= POLICYDB_CONFIG_ANDROID_NETLINK_ROUTE;
-        }
-#endif
-#ifdef KSU_COMPAT_HAS_POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH
-        if (old_db->android_netlink_getneigh) {
-            pr_info("adding POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH\n");
-            *config_ptr |= POLICYDB_CONFIG_ANDROID_NETLINK_GETNEIGH;
-        }
-#endif
-    }
-
-    // rewind fp
-    fp.data = data;
-    fp.len = len;
-
-    ret = policydb_read(new_db, &fp);
-    if (ret) {
-        pr_err("sepolicy: policydb_read: %d\n", ret);
-        goto out_free_data;
-    }
-
-    new_db->len = len;
-
-    vfree(data);
-    ret = len;
-
-    return ret;
-
-out_free_data:
-    vfree(data);
-    return ret;
-}
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0) || defined(KSU_COMPAT_HAS_POLICY_MUTEX)
 // 5.10+ using selinux_policy
 
@@ -1262,15 +1262,6 @@ out:
 #endif
 
 #else /* LINUX_VERSION_CODE < 4.2.0 */
-
-int ksu_dup_policydb(struct policydb *old_db, struct policydb *new_db)
-{
-    return -EOPNOTSUPP;
-}
-
-void ksu_destroy_policydb(struct policydb *db)
-{
-}
 
 bool ksu_type(struct policydb *db, const char *name, const char *attr)
 {

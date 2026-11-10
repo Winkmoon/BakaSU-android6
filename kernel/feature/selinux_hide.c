@@ -1,6 +1,5 @@
 #include "selinux_hide.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
 #include <linux/cred.h>
 #include <linux/cpu.h>
 #include <linux/memory.h>
@@ -142,8 +141,8 @@ static __nocfi void ksu_security_compute_av_user(struct policydb *policydb, stru
         }
     #else
         struct extended_perms {
-            /* I am a placeholder, I just want to make the compiler happy */   
-        }
+            /* I am a placeholder, I just want to make the compiler happy */
+        };
         static void (*legacy_context_struct_compute_av_fn)(struct context *scontext,
                                                     struct context *tcontext, u16 tclass, struct av_decision *avd) = NULL;
 
@@ -151,8 +150,8 @@ static __nocfi void ksu_security_compute_av_user(struct policydb *policydb, stru
                                                     struct context *tcontext, u16 tclass, struct av_decision *avd,
                                                     struct extended_perms *xperms)
         {
-            if (legacy_security_dump_masked_av_fn) {
-                legacy_security_dump_masked_av_fn(scontext, tcontext, tclass, avd);
+            if (legacy_context_struct_compute_av_fn) {
+                legacy_context_struct_compute_av_fn(scontext, tcontext, tclass, avd);
             }
         }
     #endif
@@ -1703,10 +1702,12 @@ static void ksu_context_struct_compute_av_fallback(struct policydb *policydb, st
     avd->allowed = 0;
     avd->auditallow = 0;
     avd->auditdeny = 0xffffffff;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
     if (xperms) {
         memset(&xperms->drivers, 0, sizeof(xperms->drivers));
         xperms->len = 0;
     }
+#endif
 
     if (unlikely(!tclass || tclass > policydb->p_classes.nprim)) {
         pr_warn_ratelimited("SELinux:  Invalid class %u\n", tclass);
@@ -1720,7 +1721,11 @@ static void ksu_context_struct_compute_av_fallback(struct policydb *policydb, st
      * this permission check, then use it.
      */
     avkey.target_class = tclass;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
     avkey.specified = AVTAB_AV | AVTAB_XPERMS;
+#else
+    avkey.specified = AVTAB_AV;
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) ||                                                                   \
     (defined(KSU_COMPAT_HAS_MODERN_POLICYDB) && !defined(KSU_COMPAT_TYPE_ATTR_MAP_ARRAY_NOT_FOUND))
     sattr = &policydb->type_attr_map_array[scontext->type - 1];
@@ -1744,17 +1749,35 @@ static void ksu_context_struct_compute_av_fallback(struct policydb *policydb, st
             for (node = avtab_search_node(&policydb->te_avtab, &avkey); node;
                  node = avtab_search_node_next(node, avkey.specified)) {
                 if (node->key.specified == AVTAB_ALLOWED)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
                     avd->allowed |= node->datum.u.data;
+#else
+                    avd->allowed |= node->datum.data;
+#endif
                 else if (node->key.specified == AVTAB_AUDITALLOW)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
                     avd->auditallow |= node->datum.u.data;
+#else
+                    avd->auditallow |= node->datum.data;
+#endif
                 else if (node->key.specified == AVTAB_AUDITDENY)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
                     avd->auditdeny &= node->datum.u.data;
+#else
+                    avd->auditdeny &= node->datum.data;
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
                 else if (xperms && (node->key.specified & AVTAB_XPERMS))
                     services_compute_xperms_drivers(xperms, node);
+#endif
             }
 
             /* Check conditional av table for additional permissions */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || defined(KSU_COMPAT_HAS_EXTENDED_PERMS)
             cond_compute_av(&policydb->te_cond_avtab, &avkey, avd, xperms);
+#else
+            cond_compute_av(&policydb->te_cond_avtab, &avkey, avd);
+#endif
         }
     }
 
@@ -1837,4 +1860,3 @@ allow:
     avd->allowed = 0xffffffff;
     goto out;
 }
-#endif /* LINUX_VERSION_CODE >= 4.2.0 */
