@@ -29,6 +29,7 @@ void setup_selinux(const char *, struct cred *);
 // Runtime selection: prefer KERNEL_SU_CONTEXT, fall back to
 // KERNEL_SU_CONTEXT_LEGACY when the policy does not define the ksu domain.
 void ksu_selinux_domain_init(void);
+void ksu_selinux_domain_refresh(void);
 const char *ksu_root_domain(void);
 const char *ksu_root_context(void);
 bool ksu_selinux_domain_is_legacy(void);

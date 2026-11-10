@@ -58,20 +58,10 @@ void ksu_selinux_domain_init(void)
         return;
 
     /*
-     * 3.x has no extended-permission sepolicy implementation, so the
-     * advanced ksu domain can never be created there.  Select the standard
-     * domain immediately: this must work before the SELinux policy is
-     * loaded, because init.rc is injected during first-stage boot.
+     * Always prefer an existing ksu domain, including on 3.x: the kernel
+     * cannot create it through apply_kernelsu_rules() there, but a custom
+     * policy may already define it.  Fall back only when it is absent.
      */
-    if (!ksu_selinux_advanced_supported()) {
-        ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
-        ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
-        ksu_domain_legacy = true;
-        ksu_domain_probed = true;
-        pr_info_once("BakaSU: 3.x SELinux, using legacy domain %s\n", KERNEL_SU_CONTEXT_LEGACY);
-        return;
-    }
-
     if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT)) {
         ksu_selected_domain = KERNEL_SU_DOMAIN;
         ksu_selected_context = KERNEL_SU_CONTEXT;
@@ -80,7 +70,36 @@ void ksu_selinux_domain_init(void)
         return;
     }
 
+    if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT_LEGACY)) {
+        ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
+        ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
+        ksu_domain_legacy = true;
+        ksu_domain_probed = true;
+        pr_warn("BakaSU: %s unavailable, using legacy domain %s\n", KERNEL_SU_CONTEXT, KERNEL_SU_CONTEXT_LEGACY);
+        return;
+    }
+
+    if (!ksu_selinux_advanced_supported()) {
+        /*
+         * Both probes failed, likely because the 3.x policy is not loaded
+         * yet during first-stage init.  Use a provisional legacy choice;
+         * cache_sid() refreshes the decision once policy is available.
+         */
+        ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
+        ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
+        ksu_domain_legacy = true;
+        ksu_domain_probed = true;
+        pr_info_once("BakaSU: SELinux domains not ready, provisional legacy %s\n", KERNEL_SU_CONTEXT_LEGACY);
+        return;
+    }
+
     pr_info_once("BakaSU: advanced SELinux domain not present yet, deferring fallback\n");
+}
+
+void ksu_selinux_domain_refresh(void)
+{
+    ksu_domain_probed = false;
+    ksu_selinux_domain_init();
 }
 
 #ifdef CONFIG_KSU_SUSFS
@@ -209,7 +228,7 @@ void cache_sid(void)
 {
     int err;
 
-    ksu_selinux_domain_init();
+    ksu_selinux_domain_refresh();
     err = security_secctx_to_secid(ksu_root_context(), strlen(ksu_root_context()), &cached_su_sid);
     if (err) {
         pr_warn("Failed to cache kernel su domain SID: %d\n", err);
