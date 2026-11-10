@@ -141,13 +141,19 @@ static bool check_block(struct file *fp, loff_t *pos, loff_t block_end, u8 *matc
         return false;
     }
 
-    char cert[CERT_MAX_LENGTH];
-    if (!read_exact(fp, cert, certificate_size, pos, certificates_end))
+    char *cert = kmalloc(certificate_size, GFP_KERNEL);
+    if (!cert)
         return false;
+
+    if (!read_exact(fp, cert, certificate_size, pos, certificates_end)) {
+        kfree(cert);
+        return false;
+    }
 
     unsigned char digest[SHA256_DIGEST_SIZE];
     if (ksu_sha256(cert, certificate_size, digest)) {
         pr_info("sha256 error\n");
+        kfree(cert);
         return false;
     }
 
@@ -181,6 +187,8 @@ static bool check_block(struct file *fp, loff_t *pos, loff_t block_end, u8 *matc
             signature_valid = true;
         }
     }
+
+    kfree(cert);
     return signature_valid;
 }
 
