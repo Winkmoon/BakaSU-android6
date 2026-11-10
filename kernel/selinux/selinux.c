@@ -347,6 +347,14 @@ bool is_init(const struct cred *cred)
     return is_sid_match(cred, cached_init_sid, INIT_CONTEXT);
 }
 
+bool ksu_is_init_task(void)
+{
+    if (current->pid == 1)
+        return true;
+
+    return is_init(current_cred());
+}
+
 bool is_adbd(const struct cred *cred)
 {
     return is_sid_match(cred, cached_adbd_sid, ADBD_CONTEXT);

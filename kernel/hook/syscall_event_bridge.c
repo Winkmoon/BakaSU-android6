@@ -85,7 +85,7 @@ static long __nocfi ksu_hook_execve_common(int orig_nr, const struct pt_regs *re
     const char __user *const __user *argv_user = execveat ?
                                                      (const char __user *const __user *)PT_REGS_USER_PTR(regs, 3) :
                                                      (const char __user *const __user *)PT_REGS_USER_PTR(regs, 2);
-    bool current_is_init = is_init(current_cred());
+    bool current_is_init = ksu_is_init_task();
     struct ksu_sulog_pending_event *pending_root_execve = NULL;
     long ret;
 

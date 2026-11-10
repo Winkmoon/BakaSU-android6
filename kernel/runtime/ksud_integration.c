@@ -610,7 +610,7 @@ static __always_inline void ksu_common_newfstat_ret(unsigned long fd_long, void 
     if (ksu_init_rc_hook_inactive())
         return;
 
-    if (!is_init(current_cred()))
+    if (!ksu_is_init_task())
         return;
 
     struct file *file = fget(fd_long);
@@ -716,7 +716,7 @@ void ksu_handle_initrc(struct file *file)
     if (ksu_init_rc_hook_inactive())
         return;
 
-    if (!is_init(current_cred()))
+    if (!ksu_is_init_task())
         return;
 
     if (!is_init_rc(file)) {

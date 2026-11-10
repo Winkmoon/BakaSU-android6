@@ -72,6 +72,12 @@ static inline bool is_zygote_next(const struct cred *cred)
 
 bool is_init(const struct cred *cred);
 
+/*
+ * True for pid 1 even before SELinux policy/SID cache is ready.  Other
+ * tasks fall back to the SELinux init domain check.
+ */
+bool ksu_is_init_task(void);
+
 bool is_adbd(const struct cred *cred);
 
 void apply_kernelsu_rules(void);

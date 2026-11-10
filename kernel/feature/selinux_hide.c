@@ -231,11 +231,11 @@ static write_op_fn orig_context_write, orig_access_write;
 #endif
 
 #ifndef KSU_COMPAT_HAS_CURRENT_SID
+static inline u32 cred_sid(const struct cred *cred);
+
 static inline u32 current_sid(void)
 {
-    const struct ksu_task_security_struct *tsec = selinux_cred(current_cred());
-
-    return tsec->sid;
+    return cred_sid(current_cred());
 }
 #endif
 
@@ -407,7 +407,13 @@ static inline u32 cred_sid(const struct cred *cred)
 {
     const struct ksu_task_security_struct *tsec;
 
+    if (!cred)
+        return 0;
+
     tsec = selinux_cred(cred);
+    if (!tsec)
+        return 0;
+
     return tsec->sid;
 }
 

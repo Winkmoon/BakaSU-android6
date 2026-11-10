@@ -86,8 +86,10 @@ void ksu_mark_running_process_locked(void)
             // skip kernel threads, but always allow pid 1
             continue;
         }
-        int uid = task_uid(t).val;
         const struct cred *cred = get_task_cred(t);
+        if (!cred)
+            continue;
+        int uid = ksu_get_uid_t(cred->uid);
         bool ksu_root_process = uid == 0 && is_task_ksu_domain(cred);
         bool is_zygote_process = is_zygote(cred);
         bool is_shell = uid == 2000;

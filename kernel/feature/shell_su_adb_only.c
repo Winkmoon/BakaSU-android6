@@ -29,7 +29,7 @@ static bool has_trusted_ancestor(void)
     // Stop at init: orphans reparented to it are not attached to a session any more
     for (t = current; t->pid > 1 && depth < MAX_ANCESTOR_DEPTH; t = rcu_dereference(t->real_parent), depth++) {
         const struct cred *cred = __task_cred(t);
-        if (is_adbd(cred) || is_task_ksu_domain(cred)) {
+        if (cred && (is_adbd(cred) || is_task_ksu_domain(cred))) {
             found = true;
             break;
         }
