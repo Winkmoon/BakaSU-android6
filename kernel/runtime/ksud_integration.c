@@ -52,28 +52,39 @@
 #include "preinit/preinit.h"
 
 // clang-format off
-static const char KERNEL_SU_RC[] = 
+#define KSU_INIT_RC(domain)                                                                                            \
+    "\n"                                                                                                               \
+    "on post-fs-data\n"                                                                                                \
+    "\tstart logd\n"                                                                                                   \
+    "\texec u:r:" domain ":s0 root -- " KSUD_PATH " post-fs-data\n"                                                   \
+    "\n"                                                                                                               \
+    "on nonencrypted\n"                                                                                                \
+    "\texec u:r:" domain ":s0 root -- " KSUD_PATH " services\n"                                                       \
+    "\n"                                                                                                               \
+    "on property:vold.decrypt=trigger_restart_framework\n"                                                             \
+    "\texec u:r:" domain ":s0 root -- " KSUD_PATH " services\n"                                                       \
+    "\n"                                                                                                               \
+    "on property:sys.boot_completed=1\n"                                                                                \
+    "\texec u:r:" domain ":s0 root -- " KSUD_PATH " boot-completed\n"                                                 \
+    "\n"                                                                                                               \
     "\n"
 
-    "on post-fs-data\n"
-    "	start logd\n"
-    // We should wait for the post-fs-data finish
-    "	exec u:r:" KERNEL_SU_DOMAIN ":s0 root -- " KSUD_PATH " post-fs-data\n"
-    "\n"
+static const char KERNEL_SU_RC_ADVANCED[] = KSU_INIT_RC(KERNEL_SU_DOMAIN);
+static const char KERNEL_SU_RC_LEGACY[] = KSU_INIT_RC(KERNEL_SU_DOMAIN_LEGACY);
+static const char *ksu_init_rc = KERNEL_SU_RC_ADVANCED;
+size_t ksu_rc_len = sizeof(KERNEL_SU_RC_ADVANCED) - 1;
 
-    "on nonencrypted\n"
-    "	exec u:r:" KERNEL_SU_DOMAIN ":s0 root -- " KSUD_PATH " services\n"
-    "\n"
-
-    "on property:vold.decrypt=trigger_restart_framework\n"
-    "	exec u:r:" KERNEL_SU_DOMAIN ":s0 root -- " KSUD_PATH " services\n"
-    "\n"
-
-    "on property:sys.boot_completed=1\n"
-    "	exec u:r:" KERNEL_SU_DOMAIN ":s0 root -- " KSUD_PATH " boot-completed\n"
-    "\n"
-
-    "\n";
+static void ksu_select_init_rc(void)
+{
+    ksu_selinux_domain_init();
+    if (ksu_selinux_domain_is_legacy()) {
+        ksu_init_rc = KERNEL_SU_RC_LEGACY;
+        ksu_rc_len = sizeof(KERNEL_SU_RC_LEGACY) - 1;
+    } else {
+        ksu_init_rc = KERNEL_SU_RC_ADVANCED;
+        ksu_rc_len = sizeof(KERNEL_SU_RC_ADVANCED) - 1;
+    }
+}
 // clang-format on
 
 static void stop_init_rc_hook(void);
@@ -343,7 +354,6 @@ static ssize_t (*orig_read_iter)(struct kiocb *, struct iov_iter *);
 #endif
 static struct file_operations fops_proxy;
 static ssize_t ksu_rc_pos = 0;
-const size_t ksu_rc_len = sizeof(KERNEL_SU_RC) - 1;
 
 // Prefer /metadata/vold, else /metadata/watchdog, else /metadata.
 #define MODULE_RC_PATH_VOLD "/metadata/vold/ksu/modules.rc"
@@ -472,7 +482,7 @@ append_ksu_rc:
         if (append_count > count - ret)
             append_count = count - ret;
         // copy_to_user returns the number of bytes that could not be copied
-        if (copy_to_user(buf + ret, KERNEL_SU_RC + ksu_rc_pos, append_count)) {
+        if (copy_to_user(buf + ret, ksu_init_rc + ksu_rc_pos, append_count)) {
             pr_info("read_proxy: append error, totally appended %zd\n", ksu_rc_pos);
             return ret;
         }
@@ -526,7 +536,7 @@ static ssize_t read_iter_proxy(struct kiocb *iocb, struct iov_iter *to)
 append_ksu_rc:
     if (ksu_rc_pos < ksu_rc_len) {
         // copy_to_iter returns the number of bytes successfully copied
-        append_count = copy_to_iter((void *)KERNEL_SU_RC + ksu_rc_pos, ksu_rc_len - ksu_rc_pos, to);
+        append_count = copy_to_iter((void *)ksu_init_rc + ksu_rc_pos, ksu_rc_len - ksu_rc_pos, to);
         if (!append_count) {
             pr_info("read_iter_proxy: append error, totally appended %zd\n", ksu_rc_pos);
             return ret;
@@ -725,6 +735,7 @@ void ksu_handle_initrc(struct file *file)
     // now we can sure that the init process is reading
     // `/init.rc` or `/system/etc/init/init.rc`
 
+    ksu_select_init_rc();
     load_module_rc_once();
 
     pr_info("read init.rc, comm: %s, rc_count: %zu, module_rc: %zu\n", current->comm, ksu_rc_len, module_rc_len);

@@ -446,7 +446,7 @@ static void migrate_profile(u32 version, struct app_profile *profile)
             if (strncmp(domain, "u:r:su:s0", domain_len) == 0) {
                 memset(domain, 0, domain_len);
                 // domain_len - 1 as implicit null termination
-                strncpy(domain, KSU_DEFAULT_SELINUX_DOMAIN, domain_len - 1);
+                strncpy(domain, ksu_root_context(), domain_len - 1);
                 pr_info("migrated domain of profile: %s\n", profile->key);
             }
         }

@@ -9,18 +9,15 @@
 #define KSU_COMPAT_USE_SELINUX_STATE
 #endif
 
-// 3.x SELinux policies cannot be extended with the 4.x extended-permission
-// and avtab APIs used by apply_kernelsu_rules(). Android 6 images normally
-// ship a "su" domain, so use it as the legacy root domain instead of creating
-// a new "ksu" type that would not resolve.
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
-#define KERNEL_SU_DOMAIN "su"
-#else
+// Primary domain is the full BakaSU domain.  The legacy domain is an
+// Android-6-compatible fallback and is selected at runtime when the primary
+// domain cannot be resolved by the loaded SELinux policy.
 #define KERNEL_SU_DOMAIN "ksu"
-#endif
+#define KERNEL_SU_DOMAIN_LEGACY "su"
 #define KERNEL_SU_FILE "ksu_file"
 
 #define KERNEL_SU_CONTEXT "u:r:" KERNEL_SU_DOMAIN ":s0"
+#define KERNEL_SU_CONTEXT_LEGACY "u:r:" KERNEL_SU_DOMAIN_LEGACY ":s0"
 #define KSU_FILE_CONTEXT "u:object_r:" KERNEL_SU_FILE ":s0"
 #define ZYGOTE_CONTEXT "u:r:zygote:s0"
 #define ZYGOTE_NEXT_DOMAIN "u:r:zygote_next:s0"
@@ -28,6 +25,28 @@
 #define ADBD_CONTEXT "u:r:adbd:s0"
 
 void setup_selinux(const char *, struct cred *);
+
+// Runtime selection: prefer KERNEL_SU_CONTEXT, fall back to
+// KERNEL_SU_CONTEXT_LEGACY when the policy does not define the ksu domain.
+void ksu_selinux_domain_init(void);
+const char *ksu_root_domain(void);
+const char *ksu_root_context(void);
+bool ksu_selinux_domain_is_legacy(void);
+
+/*
+ * True when the kernel has the 4.x sepolicy implementation that can create
+ * the advanced ksu domain.  The domain itself is still chosen at runtime;
+ * this only prevents an early init.rc probe from downgrading a modern kernel
+ * before apply_kernelsu_rules() has had a chance to create the domain.
+ */
+static inline bool ksu_selinux_advanced_supported(void)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
+    return true;
+#else
+    return false;
+#endif
+}
 
 void setenforce(bool);
 

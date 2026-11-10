@@ -168,6 +168,7 @@ int escape_with_root_profile(void)
     struct task_struct *t;
     struct root_profile *profile = NULL;
     struct user_struct *new_user;
+    const char *selinux_domain;
 
     cred = prepare_creds();
     if (!cred) {
@@ -248,7 +249,10 @@ int escape_with_root_profile(void)
     }
 
     setup_groups(profile, cred);
-    setup_selinux(profile->selinux_domain, cred);
+    selinux_domain = profile->selinux_domain;
+    if (!strcmp(selinux_domain, KERNEL_SU_CONTEXT))
+        selinux_domain = ksu_root_context();
+    setup_selinux(selinux_domain, cred);
 
     commit_creds(cred);
 

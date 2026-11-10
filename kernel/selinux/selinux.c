@@ -25,6 +25,63 @@ static u32 cached_init_sid __read_mostly = 0;
 static u32 cached_adbd_sid __read_mostly = 0;
 u32 ksu_file_sid __read_mostly = 0;
 
+static const char *ksu_selected_domain = KERNEL_SU_DOMAIN;
+static const char *ksu_selected_context = KERNEL_SU_CONTEXT;
+static bool ksu_domain_probed;
+static bool ksu_domain_legacy;
+
+const char *ksu_root_domain(void)
+{
+    return ksu_selected_domain;
+}
+
+const char *ksu_root_context(void)
+{
+    return ksu_selected_context;
+}
+
+bool ksu_selinux_domain_is_legacy(void)
+{
+    return ksu_domain_legacy;
+}
+
+static bool ksu_selinux_context_exists(const char *context)
+{
+    u32 sid;
+
+    return security_secctx_to_secid(context, strlen(context), &sid) == 0;
+}
+
+void ksu_selinux_domain_init(void)
+{
+    if (ksu_domain_probed)
+        return;
+
+    if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT)) {
+        ksu_selected_domain = KERNEL_SU_DOMAIN;
+        ksu_selected_context = KERNEL_SU_CONTEXT;
+        ksu_domain_legacy = false;
+        ksu_domain_probed = true;
+        return;
+    }
+
+    if (!ksu_selinux_advanced_supported()) {
+        if (ksu_selinux_context_exists(KERNEL_SU_CONTEXT_LEGACY)) {
+            ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
+            ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
+            ksu_domain_legacy = true;
+            ksu_domain_probed = true;
+            pr_warn("BakaSU: %s unavailable, using legacy domain %s\n", KERNEL_SU_CONTEXT, KERNEL_SU_CONTEXT_LEGACY);
+            return;
+        }
+    } else {
+        pr_info_once("BakaSU: advanced SELinux domain not present yet, deferring fallback\n");
+        return;
+    }
+
+    pr_warn_once("BakaSU: neither %s nor %s exists yet, will retry\n", KERNEL_SU_CONTEXT, KERNEL_SU_CONTEXT_LEGACY);
+}
+
 #ifdef CONFIG_KSU_SUSFS
 // only susfs need that
 static u32 cached_zygote_next_sid __read_mostly = 0;
@@ -62,17 +119,33 @@ static int transive_to_domain(const char *domain, struct cred *cred, bool clear_
 
 void setup_selinux(const char *domain, struct cred *cred)
 {
-    if (transive_to_domain(domain, cred, false)) {
-        pr_err("transive domain failed.\n");
+    const char *requested = domain;
+
+    if (!strcmp(domain, KERNEL_SU_CONTEXT)) {
+        ksu_selinux_domain_init();
+        requested = ksu_selected_context;
+    }
+
+    if (!transive_to_domain(requested, cred, false))
+        return;
+
+    if (strcmp(requested, KERNEL_SU_CONTEXT_LEGACY) != 0 &&
+        !transive_to_domain(KERNEL_SU_CONTEXT_LEGACY, cred, false)) {
+        ksu_selected_domain = KERNEL_SU_DOMAIN_LEGACY;
+        ksu_selected_context = KERNEL_SU_CONTEXT_LEGACY;
+        ksu_domain_legacy = true;
+        ksu_domain_probed = true;
+        pr_warn("BakaSU: falling back to SELinux domain %s\n", KERNEL_SU_CONTEXT_LEGACY);
         return;
     }
+
+    pr_err("transive domain failed.\n");
 }
 
 void setup_ksu_cred_selinux(void)
 {
-    if (ksu_cred && transive_to_domain(KERNEL_SU_CONTEXT, ksu_cred, false)) {
-        pr_err("setup ksu cred selinux domain failed.\n");
-    }
+    if (ksu_cred)
+        setup_selinux(KERNEL_SU_CONTEXT, ksu_cred);
 }
 
 void setenforce(bool enforce)
@@ -135,7 +208,8 @@ void cache_sid(void)
 {
     int err;
 
-    err = security_secctx_to_secid(KERNEL_SU_CONTEXT, strlen(KERNEL_SU_CONTEXT), &cached_su_sid);
+    ksu_selinux_domain_init();
+    err = security_secctx_to_secid(ksu_root_context(), strlen(ksu_root_context()), &cached_su_sid);
     if (err) {
         pr_warn("Failed to cache kernel su domain SID: %d\n", err);
         cached_su_sid = 0;
@@ -248,7 +322,7 @@ static inline bool is_sid_match(const struct cred *cred, u32 cached_sid, const c
 
 bool is_task_ksu_domain(const struct cred *cred)
 {
-    return is_sid_match(cred, cached_su_sid, KERNEL_SU_CONTEXT);
+    return is_sid_match(cred, cached_su_sid, ksu_root_context());
 }
 
 bool is_ksu_domain(void)
@@ -327,10 +401,6 @@ void escape_to_root_for_adb_root(void)
         return;
     }
 
-    if (transive_to_domain(KERNEL_SU_CONTEXT, cred, true)) {
-        pr_err("transive domain failed.\n");
-        abort_creds(cred);
-        return;
-    }
+    setup_selinux(KERNEL_SU_CONTEXT, cred);
     commit_creds(cred);
 }
